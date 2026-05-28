@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
 # distros/opensuse.sh — openSUSE bootstrap via zypper --root
+# Variables available: DISTRO RELEASE ARCH ROOTFS JOBS
 
 OPENSUSE_MIRROR="${OPENSUSE_MIRROR:-https://download.opensuse.org}"
 
-# Map Debian arch names to openSUSE arch names
-declare -A ARCH_MAP=(
-  [amd64]=x86_64 [arm64]=aarch64 [armhf]=armv7hl
-  [ppc64el]=ppc64le [s390x]=s390x [i386]=i586
-)
-SUSE_ARCH="${ARCH_MAP[$ARCH]:-$ARCH}"
+# Debian arch → openSUSE arch
+_suse_arch() {
+  case "${ARCH}" in
+    amd64)   echo "x86_64" ;;
+    arm64)   echo "aarch64" ;;
+    armhf)   echo "armv7hl" ;;
+    ppc64el) echo "ppc64le" ;;
+    s390x)   echo "s390x" ;;
+    i386)    echo "i586" ;;
+    *)       echo "${ARCH}" ;;
+  esac
+}
 
-# Normalize release: "tumbleweed" or "15.6" etc.
-case "$RELEASE" in
-  tumbleweed|tw) REPO_PATH="tumbleweed/repo/oss" ;;
-  *)             REPO_PATH="distribution/leap/${RELEASE}/repo/oss" ;;
-esac
-REPO_URL="${OPENSUSE_MIRROR}/${REPO_PATH}"
+_suse_repo_url() {
+  case "${RELEASE}" in
+    tumbleweed|tw) echo "${OPENSUSE_MIRROR}/tumbleweed/repo/oss" ;;
+    *)             echo "${OPENSUSE_MIRROR}/distribution/leap/${RELEASE}/repo/oss" ;;
+  esac
+}
 
 do_bootstrap() {
   info "Bootstrapping openSUSE ${RELEASE}/${ARCH} via zypper --root"
@@ -25,24 +32,15 @@ do_bootstrap() {
       die "zypper not available — install it or run on an openSUSE host"
   fi
 
-  mkdir -p "${ROOTFS}/etc/zypp"
+  local repo_url
+  repo_url="$(_suse_repo_url)"
 
-  zypper \
-    --root "${ROOTFS}" \
-    --non-interactive \
-    addrepo --no-gpgcheck \
-    "${REPO_URL}" \
-    "oss"
+  zypper --root "${ROOTFS}" --non-interactive \
+    addrepo --no-gpgcheck "${repo_url}" oss
 
-  zypper \
-    --root "${ROOTFS}" \
-    --non-interactive \
-    install -y \
-    --no-recommends \
-    patterns-base-base \
-    bash \
-    coreutils \
-    glibc
+  zypper --root "${ROOTFS}" --non-interactive \
+    install -y --no-recommends \
+    patterns-base-base bash coreutils glibc
 }
 
 install_stage3_packages() {
@@ -53,11 +51,11 @@ install_stage3_packages() {
     python3 python3-pip python3-setuptools \
     go \
     git curl wget \
-    ca-certificates \
-    sudo \
-    util-linux \
-    xz zstd \
+    ca-certificates sudo \
+    util-linux xz zstd \
     dosfstools \
-    kernel-headers
+    kernel-default kernel-default-devel \
+    dracut \
+    squashfs xorriso syslinux mtools
   zypper clean --all
 }

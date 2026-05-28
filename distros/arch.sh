@@ -1,66 +1,61 @@
 #!/usr/bin/env bash
-# distros/arch.sh — Arch Linux bootstrap via pacstrap
+# distros/arch.sh — Arch Linux bootstrap
+# Variables available: DISTRO RELEASE ARCH ROOTFS JOBS
 
 ARCH_MIRROR="${ARCH_MIRROR:-https://geo.mirror.pkgbuild.com}"
 
-# Map Debian arch names to Arch Linux arch names
-declare -A ARCH_MAP=(
-  [amd64]=x86_64 [arm64]=aarch64 [armhf]=armv7h
-  [riscv64]=riscv64 [ppc64el]=powerpc64le [i386]=i686
-)
-ARCH_ARCH="${ARCH_MAP[$ARCH]:-$ARCH}"
-
-do_bootstrap() {
-  info "Bootstrapping Arch Linux (rolling)/${ARCH} via pacstrap"
-
-  # Install pacstrap if not present
-  if ! command -v pacstrap &>/dev/null; then
-    if command -v apt-get &>/dev/null; then
-      # On Debian/Ubuntu host: bootstrap via Arch bootstrap tarball
-      _bootstrap_via_tarball
-      return
-    fi
-    pacman -S --noconfirm arch-install-scripts 2>/dev/null || \
-      die "Cannot install pacstrap — run on an Arch host or use Debian/Ubuntu"
-  fi
-
-  pacstrap -c "${ROOTFS}" base base-devel
+# Debian arch → Arch Linux arch name
+_arch_native() {
+  case "${ARCH}" in
+    amd64)   echo "x86_64" ;;
+    arm64)   echo "aarch64" ;;
+    armhf)   echo "armv7h" ;;
+    riscv64) echo "riscv64" ;;
+    ppc64el) echo "powerpc64le" ;;
+    i386)    echo "i686" ;;
+    *)       echo "${ARCH}" ;;
+  esac
 }
 
-_bootstrap_via_tarball() {
-  info "Fetching Arch bootstrap tarball for ${ARCH_ARCH}"
-  local tarball_url="${ARCH_MIRROR}/iso/latest/archlinux-bootstrap-${ARCH_ARCH}.tar.zst"
-  local tarball="/tmp/arch-bootstrap-${ARCH_ARCH}.tar.zst"
+do_bootstrap() {
+  info "Bootstrapping Arch Linux (rolling)/${ARCH} via bootstrap tarball"
+  local arch_arch
+  arch_arch="$(_arch_native)"
 
-  curl -L "$tarball_url" -o "$tarball"
-  tar --zstd --strip 1 -xf "$tarball" -C "${ROOTFS}"
-  rm -f "$tarball"
+  local tarball_url="${ARCH_MIRROR}/iso/latest/archlinux-bootstrap-${arch_arch}.tar.zst"
+  local tarball="/tmp/arch-bootstrap-${arch_arch}.tar.zst"
 
-  # Set up mirrors
+  info "Fetching ${tarball_url}"
+  curl -L "${tarball_url}" -o "${tarball}"
+  tar --zstd --strip-components=1 -xf "${tarball}" -C "${ROOTFS}"
+  rm -f "${tarball}"
+
+  # Mirrorlist
   echo "Server = ${ARCH_MIRROR}/\$repo/os/\$arch" > "${ROOTFS}/etc/pacman.d/mirrorlist"
 
-  # Bootstrap pacman inside the chroot
+  # Bootstrap pacman DB
   chroot "${ROOTFS}" bash -c "
     pacman-key --init
-    pacman-key --populate
+    pacman-key --populate archlinux
     pacman -Syu --noconfirm
-    pacman -S --noconfirm base base-devel
   "
 }
 
 install_stage3_packages() {
   pacman -Syu --noconfirm
   pacman -S --noconfirm --needed \
+    base base-devel \
     gcc binutils make cmake ninja \
     autoconf automake libtool pkgconf \
     bison flex patch \
     python python-pip python-setuptools \
     go \
     git curl wget \
-    ca-certificates \
-    sudo \
-    util-linux \
-    xz zstd \
-    dosfstools
+    ca-certificates sudo \
+    util-linux xz zstd \
+    dosfstools \
+    linux linux-headers \
+    mkinitcpio \
+    squashfs-tools libisoburn syslinux mtools
   pacman -Scc --noconfirm
 }

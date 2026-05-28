@@ -1,118 +1,191 @@
 # config/matrix.yml — distro × arch support matrix
 #
-# Defines which arch/release combinations are valid for each distro.
-# Used by CI to generate the build matrix and by build.sh for validation.
-#
 # tier:
-#   1 — fully supported, built in CI on every release
-#   2 — supported, built in CI on schedule (weekly)
-#   3 — experimental, built manually only
-#
-# native_host: the GitHub Actions runner arch for native builds (amd64 only for now)
-# cross_via_qemu: arches that require QEMU binfmt_misc on an amd64 host
+#   1 — built in CI on every push + weekly (default release, amd64/arm64/armhf)
+#   2 — built in CI on weekly schedule only
+#   3 — experimental, manual workflow_dispatch only
 
 distros:
 
   debian:
-    releases: [trixie, bookworm, sid]
+    releases:
+      - trixie
+      - bookworm
+      - sid
     default_release: trixie
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 1 }
-      riscv64:  { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 2 }
-      loong64:  { tier: 3 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 1
+      riscv64:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 2
+      loong64:
+        tier: 3
+      i386:
+        tier: 2
 
   ubuntu:
-    releases: [noble, jammy, oracular]
+    releases:
+      - noble
+      - jammy
+      - oracular
     default_release: noble
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 1 }
-      riscv64:  { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 2 }
-      i386:     { tier: 3, notes: "Ubuntu dropped i386 as a full arch in 20.04+" }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 1
+      riscv64:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 2
+      i386:
+        tier: 3
 
   devuan:
-    releases: [excalibur, daedalus, ceres]
+    releases:
+      - excalibur
+      - daedalus
+      - ceres
     default_release: excalibur
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 1 }
-      riscv64:  { tier: 2 }
-      ppc64el:  { tier: 2 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 1
+      riscv64:
+        tier: 2
+      ppc64el:
+        tier: 2
+      i386:
+        tier: 2
 
   arch:
-    releases: [rolling]
+    releases:
+      - rolling
     default_release: rolling
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 2 }
-      riscv64:  { tier: 3 }
-      i386:     { tier: 3, notes: "Arch dropped i686 in 2017; use archlinux32 instead" }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 2
+      riscv64:
+        tier: 3
+      i386:
+        tier: 3
 
   fedora:
-    releases: ["41", "42", rawhide]
+    releases:
+      - "42"
+      - "41"
+      - rawhide
     default_release: "42"
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 2 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 2
+      i386:
+        tier: 2
 
   alpine:
-    releases: ["3.21", "3.20", edge]
+    releases:
+      - "3.21"
+      - "3.20"
+      - edge
     default_release: "3.21"
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 1 }
-      riscv64:  { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 2 }
-      loong64:  { tier: 3 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 1
+      riscv64:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 2
+      loong64:
+        tier: 3
+      i386:
+        tier: 2
 
   void:
-    releases: [rolling]
+    releases:
+      - rolling
     default_release: rolling
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 2 }
-      ppc64el:  { tier: 2 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 2
+      ppc64el:
+        tier: 2
+      i386:
+        tier: 2
 
   opensuse:
-    releases: [tumbleweed, "15.6"]
+    releases:
+      - tumbleweed
+      - "15.6"
     default_release: tumbleweed
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 2 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 2
+      i386:
+        tier: 2
 
   gentoo:
-    releases: [rolling]
+    releases:
+      - rolling
     default_release: rolling
     arches:
-      amd64:    { tier: 1 }
-      arm64:    { tier: 1 }
-      armhf:    { tier: 2 }
-      riscv64:  { tier: 2 }
-      ppc64el:  { tier: 2 }
-      s390x:    { tier: 3 }
-      loong64:  { tier: 3 }
-      i386:     { tier: 2 }
+      amd64:
+        tier: 1
+      arm64:
+        tier: 1
+      armhf:
+        tier: 2
+      riscv64:
+        tier: 2
+      ppc64el:
+        tier: 2
+      s390x:
+        tier: 3
+      loong64:
+        tier: 3
+      i386:
+        tier: 2

@@ -1,55 +1,67 @@
 #!/usr/bin/env bash
-# distros/void.sh — Void Linux bootstrap via xbps-install
+# distros/void.sh — Void Linux bootstrap via xbps-static
+# Variables available: DISTRO RELEASE ARCH ROOTFS JOBS
 
 VOID_MIRROR="${VOID_MIRROR:-https://repo-default.voidlinux.org}"
+VOID_LIBC="${VOID_LIBC:-glibc}"   # or musl
 
-# Map Debian arch names to Void arch names
-# Void uses musl or glibc variants; default to glibc
-declare -A ARCH_MAP=(
-  [amd64]=x86_64 [arm64]=aarch64 [armhf]=armv7l
-  [ppc64el]=ppc64le [i386]=i686
-)
-VOID_ARCH="${ARCH_MAP[$ARCH]:-$ARCH}"
-VOID_LIBC="${VOID_LIBC:-glibc}"  # or musl
+# Debian arch → Void arch
+_void_arch() {
+  case "${ARCH}" in
+    amd64)   echo "x86_64" ;;
+    arm64)   echo "aarch64" ;;
+    armhf)   echo "armv7l" ;;
+    ppc64el) echo "ppc64le" ;;
+    i386)    echo "i686" ;;
+    *)       echo "${ARCH}" ;;
+  esac
+}
 
-# Void repo path differs by libc
-if [[ "$VOID_LIBC" == "musl" ]]; then
-  VOID_REPO="${VOID_MIRROR}/current/musl"
-else
-  VOID_REPO="${VOID_MIRROR}/current"
-fi
+_void_repo() {
+  local void_arch="$1"
+  if [[ "${VOID_LIBC}" == "musl" ]]; then
+    echo "${VOID_MIRROR}/current/musl"
+  else
+    echo "${VOID_MIRROR}/current"
+  fi
+}
+
+_void_kernel() {
+  # Void uses linux-base meta-package; arch-specific kernels are pulled in
+  echo "linux"
+}
 
 do_bootstrap() {
-  info "Bootstrapping Void Linux (${VOID_LIBC})/${ARCH} via xbps-install"
+  info "Bootstrapping Void Linux (${VOID_LIBC})/${ARCH} via xbps-static"
+  local void_arch repo
+  void_arch="$(_void_arch)"
+  repo="$(_void_repo "${void_arch}")"
 
-  # Fetch xbps-static
-  local xbps_url="${VOID_MIRROR}/static"
+  # Fetch xbps-static tarball
+  local static_url="${VOID_MIRROR}/static"
   local xbps_tarball
-  xbps_tarball=$(curl -sL "${xbps_url}/" \
-    | grep -oP "xbps-static-[^\"]+\\.${VOID_ARCH}\\.tar\\.xz" | tail -1)
-  [[ -n "$xbps_tarball" ]] || die "Cannot find xbps-static for ${VOID_ARCH}"
+  xbps_tarball=$(curl -sL "${static_url}/" \
+    | grep -oP "xbps-static-[^\"]+\\.${void_arch}\\.tar\\.xz" | sort -V | tail -1)
+  [[ -n "${xbps_tarball}" ]] || die "Cannot find xbps-static for ${void_arch}"
 
-  curl -sL "${xbps_url}/${xbps_tarball}" -o /tmp/xbps-static.tar.xz
+  curl -sL "${static_url}/${xbps_tarball}" -o /tmp/xbps-static.tar.xz
   tar -xJf /tmp/xbps-static.tar.xz -C /tmp
   rm -f /tmp/xbps-static.tar.xz
 
   local xbps_install
-  xbps_install=$(find /tmp -name "xbps-install.static" | head -1)
-  [[ -n "$xbps_install" ]] || die "xbps-install.static not found after extraction"
+  xbps_install=$(find /tmp -name "xbps-install.static" 2>/dev/null | head -1)
+  [[ -n "${xbps_install}" ]] || die "xbps-install.static not found after extraction"
 
-  # Fetch Void keyring
   mkdir -p "${ROOTFS}/var/db/xbps/keys"
-  curl -sL "${VOID_REPO}/void-repo-keys-0.1_1.${VOID_ARCH}.xbps" \
-    -o /tmp/void-keys.xbps 2>/dev/null || true
 
-  "$xbps_install" \
+  "${xbps_install}" \
     -r "${ROOTFS}" \
-    -R "${VOID_REPO}" \
-    --arch "${VOID_ARCH}" \
+    -R "${repo}" \
+    --arch "${void_arch}" \
     -S \
     base-system
 
-  rm -f "$xbps_install"
+  rm -f "${xbps_install}"
 }
 
 install_stage3_packages() {
@@ -61,11 +73,11 @@ install_stage3_packages() {
     python3 python3-pip python3-setuptools \
     go \
     git curl wget \
-    ca-certificates \
-    sudo \
-    util-linux \
-    xz zstd \
+    ca-certificates sudo \
+    util-linux xz zstd \
     dosfstools \
-    linux-headers
+    linux linux-headers \
+    dracut \
+    squashfs-tools libisoburn syslinux mtools
   xbps-remove -Oo
 }

@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 # distros/fedora.sh — Fedora bootstrap via dnf --installroot
+# Variables available: DISTRO RELEASE ARCH ROOTFS JOBS
 
-# Map Debian arch names to RPM arch names
-declare -A ARCH_MAP=(
-  [amd64]=x86_64 [arm64]=aarch64 [armhf]=armhfp
-  [ppc64el]=ppc64le [s390x]=s390x [i386]=i686
-)
-RPM_ARCH="${ARCH_MAP[$ARCH]:-$ARCH}"
+# Debian arch → RPM arch
+_fedora_arch() {
+  case "${ARCH}" in
+    amd64)   echo "x86_64" ;;
+    arm64)   echo "aarch64" ;;
+    armhf)   echo "armhfp" ;;
+    ppc64el) echo "ppc64le" ;;
+    s390x)   echo "s390x" ;;
+    i386)    echo "i686" ;;
+    *)       echo "${ARCH}" ;;
+  esac
+}
+
+_fedora_kernel() {
+  # All Fedora arches use the same package name
+  echo "kernel"
+}
 
 do_bootstrap() {
   info "Bootstrapping Fedora ${RELEASE}/${ARCH} via dnf --installroot"
+  local rpm_arch
+  rpm_arch="$(_fedora_arch)"
 
   if ! command -v dnf &>/dev/null; then
     apt-get install -y --no-install-recommends dnf 2>/dev/null || \
@@ -19,18 +33,14 @@ do_bootstrap() {
   dnf \
     --installroot="${ROOTFS}" \
     --releasever="${RELEASE}" \
-    --forcearch="${RPM_ARCH}" \
+    --forcearch="${rpm_arch}" \
     install -y \
-    fedora-release \
-    bash \
-    coreutils \
-    glibc-minimal-langpack
+    fedora-release bash coreutils glibc-minimal-langpack
 
-  # Initialize RPM DB in rootfs
   dnf \
     --installroot="${ROOTFS}" \
     --releasever="${RELEASE}" \
-    --forcearch="${RPM_ARCH}" \
+    --forcearch="${rpm_arch}" \
     makecache
 }
 
@@ -42,11 +52,11 @@ install_stage3_packages() {
     python3 python3-pip python3-setuptools \
     golang \
     git curl wget \
-    ca-certificates \
-    sudo \
-    util-linux \
-    xz zstd \
+    ca-certificates sudo \
+    util-linux xz zstd \
     dosfstools \
-    kernel-headers
+    kernel kernel-devel kernel-headers \
+    dracut \
+    squashfs-tools xorriso syslinux mtools
   dnf clean all
 }

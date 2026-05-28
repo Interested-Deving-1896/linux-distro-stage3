@@ -4,19 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       distro:
-        description: "Distro (debian/ubuntu/devuan/arch/fedora/alpine/void/opensuse/gentoo)"
+        description: "Distro (leave blank for all tier-1)"
         required: false
         default: ""
       arch:
-        description: "Architecture (amd64/arm64/armhf/riscv64/ppc64el/s390x/loong64/i386)"
+        description: "Arch (leave blank for all tier-1)"
         required: false
         default: ""
       release:
-        description: "Release (distro-specific, e.g. trixie/noble/rolling/3.21)"
+        description: "Release (leave blank for default)"
         required: false
         default: ""
       tier:
-        description: "Max tier to build (1=stable only, 2=+weekly, 3=all)"
+        description: "Max tier (1=stable, 2=+weekly, 3=all)"
         required: false
         default: "1"
   push:
@@ -26,8 +26,10 @@ on:
       - "AGENTS.md"
       - "docs/**"
   schedule:
-    # Tier 1 (stable) — weekly on Monday 02:00 UTC
+    # Tier-1 weekly — Monday 02:00 UTC
     - cron: "0 2 * * 1"
+    # Tier-2 weekly — Wednesday 02:00 UTC
+    - cron: "0 2 * * 3"
 
 concurrency:
   group: stage3-${{ github.ref }}-${{ github.event_name }}
@@ -40,22 +42,37 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       matrix: ${{ steps.gen.outputs.matrix }}
+      tier:   ${{ steps.tier.outputs.tier }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve tier
+        id: tier
+        run: |
+          # Wednesday schedule → tier 2; everything else → tier 1
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            day=$(date +%u)   # 1=Mon … 7=Sun
+            echo "tier=$([[ $day -eq 3 ]] && echo 2 || echo 1)" >> "$GITHUB_OUTPUT"
+          else
+            echo "tier=${{ github.event.inputs.tier || '1' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install PyYAML
+        run: pip3 install --quiet pyyaml
 
       - name: Generate matrix
         id: gen
         env:
-          INPUT_DISTRO:  ${{ github.event.inputs.distro }}
-          INPUT_ARCH:    ${{ github.event.inputs.arch }}
-          INPUT_RELEASE: ${{ github.event.inputs.release }}
-          INPUT_TIER:    ${{ github.event.inputs.tier || '1' }}
+          INPUT_DISTRO:  ${{ github.event.inputs.distro  || '' }}
+          INPUT_ARCH:    ${{ github.event.inputs.arch    || '' }}
+          INPUT_RELEASE: ${{ github.event.inputs.release || '' }}
+          INPUT_TIER:    ${{ steps.tier.outputs.tier }}
         run: |
           python3 scripts/gen-matrix.py \
-            --distro  "${INPUT_DISTRO:-}" \
-            --arch    "${INPUT_ARCH:-}" \
-            --release "${INPUT_RELEASE:-}" \
-            --tier    "${INPUT_TIER:-1}" \
+            --distro  "${INPUT_DISTRO}"  \
+            --arch    "${INPUT_ARCH}"    \
+            --release "${INPUT_RELEASE}" \
+            --tier    "${INPUT_TIER}"    \
             | tee /tmp/matrix.json
           echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
 
@@ -82,9 +99,6 @@ jobs:
           large-packages: true
           swap-storage: true
 
-      - name: Show available disk space
-        run: df -h
-
       - name: Install host dependencies
         run: |
           sudo apt-get update -qq
@@ -92,15 +106,15 @@ jobs:
             debootstrap \
             qemu-user-static \
             binfmt-support \
-            curl \
-            git \
-            xz-utils \
-            zstd
+            curl git \
+            xz-utils zstd \
+            python3-yaml
 
       - name: Register QEMU binfmt handlers
-        run: |
-          sudo update-binfmts --enable
-          ls /proc/sys/fs/binfmt_misc/ | grep -v register | grep -v status || true
+        run: sudo update-binfmts --enable
+
+      - name: Show disk space
+        run: df -h
 
       - name: Build stage3
         env:
@@ -108,7 +122,12 @@ jobs:
           RELEASE: ${{ matrix.release }}
           ARCH:    ${{ matrix.arch }}
           JOBS:    "2"
-        run: sudo -E ./build.sh --distro "$DISTRO" --release "$RELEASE" --arch "$ARCH"
+        run: |
+          sudo -E ./build.sh \
+            --distro  "$DISTRO"  \
+            --release "$RELEASE" \
+            --arch    "$ARCH"    \
+            --jobs    "$JOBS"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -123,11 +142,15 @@ jobs:
   # ── Release ─────────────────────────────────────────────────────────────────
   release:
     name: Create release
-    needs: build
+    needs: [matrix, build]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-    if: github.event_name == 'push' || github.event_name == 'schedule'
+    # Only release on push to main or scheduled runs
+    if: >-
+      always() &&
+      needs.build.result != 'cancelled' &&
+      (github.event_name == 'push' || github.event_name == 'schedule')
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -138,28 +161,23 @@ jobs:
       - name: List artifacts
         run: find artifacts/ -name "*.tar.gz" | sort
 
-      - name: Generate release tag
-        id: tag
-        run: |
-          TAG="stage3-$(date +%Y%m%d)"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "name=Linux Distro Stage3 $(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
-
       - name: Create release
         uses: ncipollo/release-action@v1
         with:
           artifacts: "artifacts/*.tar.gz,artifacts/*.sha256"
           token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: false
-          tag: ${{ steps.tag.outputs.tag }}
-          name: ${{ steps.tag.outputs.name }}
+          tag: "stage3-${{ github.run_id }}"
+          name: "Linux Distro Stage3 — tier ${{ needs.matrix.outputs.tier }} — ${{ github.run_id }}"
           body: |
-            Automated stage3 tarballs for all supported distro/arch combinations.
+            Automated stage3 tarballs — tier ${{ needs.matrix.outputs.tier }} build.
 
             Each tarball is a minimal bootable root filesystem containing:
-            - Compiler toolchain (gcc, binutils, make, cmake, ninja)
+            - Compiler toolchain (gcc, g++, binutils, make, cmake, ninja)
             - Languages (python3, go)
             - Build tools (autoconf, automake, bison, flex, patch)
+            - Kernel image + headers (arch-specific)
+            - initramfs tools + squashfs/xorriso for ISO assembly
             - Essential utils (git, curl, sudo, util-linux, xz, zstd)
 
             **Verify integrity:**

@@ -1,47 +1,74 @@
 #!/usr/bin/env bash
-# distros/alpine.sh — Alpine Linux bootstrap via apk
+# distros/alpine.sh — Alpine Linux bootstrap via apk-static
+# Variables available: DISTRO RELEASE ARCH ROOTFS JOBS
 
 ALPINE_MIRROR="${ALPINE_MIRROR:-https://dl-cdn.alpinelinux.org/alpine}"
 
-# Map Debian arch names to Alpine arch names
-declare -A ARCH_MAP=(
-  [amd64]=x86_64 [arm64]=aarch64 [armhf]=armhf
-  [riscv64]=riscv64 [ppc64el]=ppc64le [s390x]=s390x
-  [loong64]=loongarch64 [i386]=x86
-)
-ALPINE_ARCH="${ARCH_MAP[$ARCH]:-$ARCH}"
+# Debian arch → Alpine arch
+_alpine_arch() {
+  case "${ARCH}" in
+    amd64)   echo "x86_64" ;;
+    arm64)   echo "aarch64" ;;
+    armhf)   echo "armhf" ;;
+    riscv64) echo "riscv64" ;;
+    ppc64el) echo "ppc64le" ;;
+    s390x)   echo "s390x" ;;
+    loong64) echo "loongarch64" ;;
+    i386)    echo "x86" ;;
+    *)       echo "${ARCH}" ;;
+  esac
+}
 
-# Normalize release: "3.20" → "v3.20", "edge" → "edge"
-case "$RELEASE" in
-  edge) ALPINE_BRANCH="edge" ;;
-  v*)   ALPINE_BRANCH="$RELEASE" ;;
-  *)    ALPINE_BRANCH="v${RELEASE}" ;;
-esac
+# Normalise release: "3.20" → "v3.20", "edge" → "edge"
+_alpine_branch() {
+  case "${RELEASE}" in
+    edge) echo "edge" ;;
+    v*)   echo "${RELEASE}" ;;
+    *)    echo "v${RELEASE}" ;;
+  esac
+}
+
+# Alpine arch → kernel package name
+_alpine_kernel() {
+  case "${ARCH}" in
+    amd64|i386) echo "linux-lts" ;;
+    arm64)      echo "linux-lts" ;;
+    armhf)      echo "linux-rpi" ;;
+    riscv64)    echo "linux-lts" ;;
+    ppc64el)    echo "linux-lts" ;;
+    s390x)      echo "linux-lts" ;;
+    loong64)    echo "linux-lts" ;;
+    *)          echo "linux-lts" ;;
+  esac
+}
 
 do_bootstrap() {
-  info "Bootstrapping Alpine ${ALPINE_BRANCH}/${ARCH} via apk"
+  info "Bootstrapping Alpine $(_alpine_branch)/${ARCH} via apk-static"
+  local alpine_arch branch
+  alpine_arch="$(_alpine_arch)"
+  branch="$(_alpine_branch)"
 
-  local apk_tools_url="${ALPINE_MIRROR}/${ALPINE_BRANCH}/main/${ALPINE_ARCH}"
-  local apk_static
+  local repo_url="${ALPINE_MIRROR}/${branch}/main/${alpine_arch}"
+  local apk_pkg
+  apk_pkg=$(curl -sL "${repo_url}/" \
+    | grep -oP 'apk-tools-static-[^"]+\.apk' | sort -V | tail -1)
+  [[ -n "${apk_pkg}" ]] || die "Cannot find apk-tools-static for ${alpine_arch}"
 
-  # Fetch apk-tools-static
-  apk_static=$(curl -sL "${apk_tools_url}/" \
-    | grep -oP 'apk-tools-static-[^"]+\.apk' | tail -1)
-  [[ -n "$apk_static" ]] || die "Cannot find apk-tools-static for ${ALPINE_ARCH}"
-
-  curl -sL "${apk_tools_url}/${apk_static}" -o /tmp/apk-tools-static.apk
+  curl -sL "${repo_url}/${apk_pkg}" -o /tmp/apk-tools-static.apk
   tar -xzf /tmp/apk-tools-static.apk -C /tmp sbin/apk.static
   rm -f /tmp/apk-tools-static.apk
 
   mkdir -p "${ROOTFS}/etc/apk"
-  echo "${ALPINE_MIRROR}/${ALPINE_BRANCH}/main"      > "${ROOTFS}/etc/apk/repositories"
-  echo "${ALPINE_MIRROR}/${ALPINE_BRANCH}/community" >> "${ROOTFS}/etc/apk/repositories"
+  printf '%s\n' \
+    "${ALPINE_MIRROR}/${branch}/main" \
+    "${ALPINE_MIRROR}/${branch}/community" \
+    > "${ROOTFS}/etc/apk/repositories"
 
   /tmp/sbin/apk.static \
-    -X "${ALPINE_MIRROR}/${ALPINE_BRANCH}/main" \
+    -X "${ALPINE_MIRROR}/${branch}/main" \
     -U --allow-untrusted \
     --root "${ROOTFS}" \
-    --arch "${ALPINE_ARCH}" \
+    --arch "${alpine_arch}" \
     --initdb \
     add alpine-base
 
@@ -57,10 +84,10 @@ install_stage3_packages() {
     python3 py3-pip py3-setuptools \
     go \
     git curl wget \
-    ca-certificates \
-    sudo \
-    util-linux \
-    xz zstd \
+    ca-certificates sudo \
+    util-linux xz zstd \
     dosfstools \
-    linux-headers
+    "$(_alpine_kernel)" linux-headers \
+    mkinitfs \
+    squashfs-tools xorriso syslinux mtools
 }
