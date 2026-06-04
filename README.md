@@ -1,30 +1,29 @@
+[update-readmes]   Mode: rewrite — migrating to template structure...
 # linux-distro-stage3
 
-Distro-agnostic, architecture-agnostic Linux stage3 builder.
+[![Built with Ona](https://ona.com/build-with-ona.svg)](https://app.ona.com/#https://github.com/Interested-Deving-1896/linux-distro-stage3)
 
-Produces minimal bootable root filesystem tarballs for any supported distro/arch combination. Each tarball contains a compiler toolchain, build tools, and essential utilities — nothing more.
+<!-- AI:start:what-it-does -->
+_Description pending._
+<!-- AI:end:what-it-does -->
 
-Forked from [chromiumos-stage3](https://github.com/Interested-Deving-1896/chromiumos-stage3) and generalized: the ChromiumOS-specific `cros_sdk`/Portage bootstrap is replaced with native distro tooling (`debootstrap`, `pacstrap`, `dnf`, `apk`, `xbps-install`, `zypper`, Gentoo stage3 tarballs).
+## Architecture
 
-## Supported distros and architectures
+<!-- AI:start:architecture -->
+_Architecture documentation pending._
+<!-- AI:end:architecture -->
 
-| Distro | amd64 | arm64 | armhf | riscv64 | ppc64el | s390x | loong64 | i386 |
-|--------|:-----:|:-----:|:-----:|:-------:|:-------:|:-----:|:-------:|:----:|
-| Debian (trixie/bookworm/sid) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🧪 | ✅ |
-| Ubuntu (noble/jammy/oracular) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | 🧪 |
-| Devuan (excalibur/daedalus/ceres) | ✅ | ✅ | ✅ | ✅ | ✅ | — | — | ✅ |
-| Arch Linux (rolling) | ✅ | ✅ | ✅ | 🧪 | — | — | — | 🧪 |
-| Fedora (42/41/rawhide) | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ |
-| Alpine (3.21/3.20/edge) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | 🧪 | ✅ |
-| Void Linux (rolling) | ✅ | ✅ | ✅ | — | ✅ | — | — | ✅ |
-| openSUSE (tumbleweed/15.6) | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ |
-| Gentoo (rolling) | ✅ | ✅ | ✅ | ✅ | ✅ | 🧪 | 🧪 | ✅ |
+## Install
 
-✅ Tier 1/2 — built in CI &nbsp; 🧪 Tier 3 — experimental, manual only &nbsp; — Not supported
+<!-- Add installation instructions here. This section is yours — the AI will not modify it. -->
 
-Cross-arch builds use QEMU `binfmt_misc` on an amd64 host.
+```bash
+git clone https://github.com/Interested-Deving-1896/linux-distro-stage3.git
+cd linux-distro-stage3
+```
 
 ## Usage
+
 
 ```bash
 # Build Debian trixie for amd64 (native)
@@ -47,54 +46,50 @@ Output: `{distro}_stage3_{release}_{arch}_{date}.tar.gz`
 - For cross-arch: `qemu-user-static`, `binfmt-support`
 - Distro-specific: `debootstrap` (Debian/Ubuntu/Devuan), `pacstrap` (Arch), `dnf` (Fedora), `apk` (Alpine), `xbps-install` (Void), `zypper` (openSUSE)
 
-## Stage3 package set
+## Configuration
 
-Every stage3 tarball contains:
-
-| Category | Packages |
-|----------|----------|
-| Compiler | gcc, g++, binutils |
-| Build | make, cmake, ninja, autoconf, automake, libtool, pkg-config |
-| Languages | python3, pip, go |
-| Parse/gen | bison, flex, patch |
-| VCS/net | git, curl, wget |
-| System | sudo, util-linux, ca-certificates |
-| Compression | xz, zstd |
-| Filesystem | dosfstools |
-| Headers | linux-headers |
+<!-- Document configuration options here. This section is yours — the AI will not modify it. -->
 
 ## CI
 
-GitHub Actions builds the tier 1 matrix (default release × amd64/arm64/armhf) weekly and on every push to `main`. Tier 2 arches build on schedule. Tier 3 is manual-only via `workflow_dispatch`.
+<!-- AI:start:ci -->
+_CI documentation pending._
+<!-- AI:end:ci -->
 
-Artifacts are published as GitHub Releases tagged `stage3-YYYYMMDD`.
+## Mirror chain
 
-## Fork: penguins-eggs-stage3
-
-[penguins-eggs-stage3](https://github.com/Interested-Deving-1896/penguins-eggs-stage3) extends each stage3 with:
-- penguins-eggs installation
-- Naked base image builds (`eggs produce --naked`)
-- Integration with the penguins-eggs `all-features` branch
-
-## Architecture
+<!-- AI:start:mirror-chain -->
+This repo is maintained in [`Interested-Deving-1896/linux-distro-stage3`](https://github.com/Interested-Deving-1896/linux-distro-stage3) and mirrored through:
 
 ```
-linux-distro-stage3/
-├── build.sh                  # Main entry point
-├── distros/
-│   ├── debian.sh             # debootstrap bootstrap + package install
-│   ├── ubuntu.sh
-│   ├── devuan.sh
-│   ├── arch.sh               # pacstrap / Arch bootstrap tarball
-│   ├── fedora.sh             # dnf --installroot
-│   ├── alpine.sh             # apk-static
-│   ├── void.sh               # xbps-install
-│   ├── opensuse.sh           # zypper --root
-│   └── gentoo.sh             # official stage3 tarball + emerge
-├── config/
-│   └── matrix.yml            # distro × arch support matrix
-├── scripts/
-│   └── gen-matrix.py         # CI matrix generator
-└── .github/workflows/
-    └── build.yml             # CI: matrix build + release
+Interested-Deving-1896/linux-distro-stage3  ──►  OpenOS-Project-OSP/linux-distro-stage3  ──►  OpenOS-Project-Ecosystem-OOC/linux-distro-stage3
 ```
+
+Changes flow downstream automatically via the hourly mirror chain in
+[`fork-sync-all`](https://github.com/Interested-Deving-1896/fork-sync-all).
+Direct commits to OSP or OOC are detected and opened as PRs back to `Interested-Deving-1896`.
+<!-- AI:end:mirror-chain -->
+
+## Contributors
+
+<!-- AI:start:contributors -->
+_Contributors pending._
+<!-- AI:end:contributors -->
+
+## Origins
+
+<!-- AI:start:origins -->
+_Original project — no upstream fork._
+<!-- AI:end:origins -->
+
+## Resources
+
+<!-- AI:start:resources -->
+_No additional resource files found._
+<!-- AI:end:resources -->
+
+## License
+
+<!-- AI:start:license -->
+[GPL-3.0](https://github.com/Interested-Deving-1896/linux-distro-stage3/blob/main/LICENSE) © 2026 [Interested-Deving-1896](https://github.com/Interested-Deving-1896)
+<!-- AI:end:license -->
