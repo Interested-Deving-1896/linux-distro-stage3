@@ -54,7 +54,7 @@ jobs:
 
       - name: Retry mirror
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          GH_TOKEN: ${{ github.token }}  # Changed from SYNC_TOKEN to github.token
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           case "$WORKFLOW_NAME" in
