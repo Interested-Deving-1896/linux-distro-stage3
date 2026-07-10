@@ -44,7 +44,7 @@ jobs:
       matrix: ${{ steps.gen.outputs.matrix }}
       tier:   ${{ steps.tier.outputs.tier }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Resolve tier
         id: tier
@@ -87,7 +87,7 @@ jobs:
       matrix: ${{ fromJson(needs.matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
